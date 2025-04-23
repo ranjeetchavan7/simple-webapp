@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>DevOps Progress</title>
+</head>
+<body>
+    <h2>Welcome, {{ username }}!</h2>
+    <h3>Track Your Progress</h3>
+    <form method="POST">
+        <label for="tool">DevOps Tool:</label><br>
+        <input type="text" id="tool" name="tool"><br><br>
+        <label for="completion">Completion (%):</label><br>
+        <input type="number" id="completion" name="completion" min="0" max="100"><br><br>
+        <input type="submit" value="Update Progress">
+    </form>
+    {% if progress %}
+    <h3>Your Current Progress:</h3>
+    <ul>
+        {% for tool, completion in progress.items() %}
+        <li>{{ tool }}: {{ completion }}%</li>
+        {% endfor %}
+    </ul>
+    {% endif %}
+    <p><a href="{{ url_for('logout') }}">Logout</a></p>
+</body>
+</html>
