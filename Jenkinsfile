@@ -7,15 +7,15 @@ pipeline {
         // Other environment variables
         ACR_NAME = 'ranjeet'
         IMAGE_NAME = "${ACR_NAME}.azurecr.io/webapp:${BUILD_ID}"
-        KUBE_CONFIG_CREDENTIALS = 'aks-sp'  // Changed to aks-sp
+        KUBE_CONFIG_CREDENTIALS = 'aks-sp'  // Changed to aks-sp.  This should be the ID of your Azure Service Principal credential in Jenkins.
         DEPLOYMENT_NAME = 'webapp-deployment'
         NAMESPACE = 'default'
         DOCKERFILE_PATH = 'webapp'
         K8S_MANIFEST_PATH = 'k8s'
         APP_NAME = 'webapp'
         REGISTRY_CREDENTIALS = 'acr-credentials'
-        RESOURCE_GROUP = 'my-rg'
-        AKS_CLUSTER_NAME = 'my-aks'
+        RESOURCE_GROUP = 'your-resource-group'  // Replace with your actual resource group
+        AKS_CLUSTER_NAME = 'your-aks-cluster'    // Replace with your actual AKS cluster name
     }
 
     stages {
@@ -67,15 +67,18 @@ pipeline {
         stage('Deploy to AKS') {
             steps {
                 // Use withAzureCli to handle Azure Service Principal
-                withAzureCli(credentialsId: env.KUBE_CONFIG_CREDENTIALS, script: """
-                    # Get the AKS credentials using Azure CLI
-                    az aks get-credentials --resource-group ${env.RESOURCE_GROUP} --name ${env.AKS_CLUSTER_NAME} --file \$HOME/.kube/config
-                    
-                    # Apply Kubernetes manifests
-                    kubectl apply -f ${env.K8S_MANIFEST_PATH}/deployment.yaml -n ${env.NAMESPACE}
-                    kubectl apply -f ${env.K8S_MANIFEST_PATH}/service.yaml -n ${env.NAMESPACE}
-                    echo "Successfully deployed ${env.APP_NAME} to AKS namespace ${env.NAMESPACE}"
-                """)
+                withAzureCli(credentialsId: env.KUBE_CONFIG_CREDENTIALS) {  // Use the credential ID
+                    script {
+                        echo "Deploying to AKS"
+                        // Get the AKS credentials using Azure CLI.  Assumes your SP has the necessary permissions.
+                        sh "az aks get-credentials --resource-group ${env.RESOURCE_GROUP} --name ${env.AKS_CLUSTER_NAME} --overwrite"
+
+                        // Apply Kubernetes manifests
+                        sh "kubectl apply -f ${env.K8S_MANIFEST_PATH}/deployment.yaml -n ${env.NAMESPACE}"
+                        sh "kubectl apply -f ${env.K8S_MANIFEST_PATH}/service.yaml -n ${env.NAMESPACE}"
+                        echo "Successfully deployed ${env.APP_NAME} to AKS namespace ${env.NAMESPACE}"
+                    }
+                }
             }
         }
 
@@ -90,7 +93,7 @@ pipeline {
                     withCredentials([file(credentialsId: env.KUBE_CONFIG_CREDENTIALS, variable: 'KUBECONFIG_FILE')]) {
                         for (int i = 0; i < maxRetries; i++) {
                             try {
-                                def serviceInfo = sh(script: "kubectl --kubeconfig=\"${KUBECONFIG_FILE}\" get service ${serviceName} -n ${namespace} -o jsonpath='{.status.loadBalancer.ingress[0].ip}'", returnStdout: true).trim()
+                                def serviceInfo = sh(script: "kubectl --kubeconfig=\"\$KUBECONFIG_FILE\" get service ${serviceName} -n ${namespace} -o jsonpath='{.status.loadBalancer.ingress[0].ip}'", returnStdout: true).trim()
                                 if (serviceInfo) {
                                     echo "Service ${serviceName} is available at: ${serviceInfo}"
                                     sh "curl --fail --show-error http://${serviceInfo}"
