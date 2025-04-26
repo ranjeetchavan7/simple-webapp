@@ -45,14 +45,17 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                withCredentials([usernamePassword(credentialsId: env.REGISTRY_CREDENTIALS, passwordVariable: 'REGISTRY_PASSWORD', usernameVariable: 'REGISTRY_USERNAME')]) {
+                script {
+                  withCredentials([usernamePassword(credentialsId: env.REGISTRY_CREDENTIALS, passwordVariable: 'REGISTRY_PASSWORD', usernameVariable: 'REGISTRY_USERNAME')]) {
                     echo "Building Docker image: ${env.IMAGE_NAME}"
                     // Change to the directory containing the Dockerfile
-                    sh "cd ${env.DOCKERFILE_PATH} && docker build -f Dockerfile -t ${IMAGE_NAME} ."
+                    sh "cd ${env.DOCKERFILE_PATH}"
+                    sh "docker build -f Dockerfile -t ${IMAGE_NAME} ."
                     echo "Logging into Azure Container Registry: ${env.ACR_NAME}.azurecr.io"
                     sh "docker login -u ${env.REGISTRY_USERNAME} -p ${env.REGISTRY_PASSWORD} ${env.ACR_NAME}.azurecr.io"
                     echo "Pushing Docker image: ${env.IMAGE_NAME}"
                     sh "docker push ${IMAGE_NAME}"
+                  }
                 }
             }
         }
