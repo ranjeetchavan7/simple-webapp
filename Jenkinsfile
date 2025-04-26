@@ -60,7 +60,7 @@ pipeline {
                 // Use withAzureCli to handle Azure Service Principal
                 withAzureCli(credentialsId: env.KUBE_CONFIG_CREDENTIALS, script: """
                     # Get the AKS credentials using Azure CLI
-                    az aks get-credentials --resource-group=my-acr-rg --name=MyAKSCluster --file=-
+                    az aks get-credentials --resource-group="my-acr-rg" --name="MyAKSCluster" --file=-
                     
                     # Apply Kubernetes manifests
                     kubectl apply -f ${env.K8S_MANIFEST_PATH}/deployment.yaml -n ${env.NAMESPACE}
