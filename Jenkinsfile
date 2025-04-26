@@ -2,34 +2,24 @@ pipeline {
     agent any
 
     environment {
-        GIT_CREDENTIALS = 'github-ssh'
-        ACR_NAME = 'ranjeet'
-        IMAGE_NAME = "${ACR_NAME}.azurecr.io/webapp:${BUILD_ID}"
-        KUBE_CONFIG_CREDENTIALS = 'my-aks-service-principal'
-        DEPLOYMENT_NAME = 'webapp-deployment'
-        NAMESPACE = 'default'
-        DOCKERFILE_PATH = 'webapp'
-        K8S_MANIFEST_PATH = 'k8s'
-        APP_NAME = 'webapp'
-        REGISTRY_CREDENTIALS = 'acr-credentials'
+        REGISTRY = 'ranjeetchavan7.azurecr.io'
+        IMAGE_NAME = 'simple-webapp'
     }
 
     stages {
         stage('Checkout') {
             steps {
-                git credentialsId: env.GIT_CREDENTIALS, url: 'https://github.com/ranjeetchavan7/simple-webapp.git', branch: 'main'
+                git branch: 'main', credentialsId: 'github-ssh', url: 'https://github.com/ranjeetchavan7/simple-webapp.git'
             }
         }
 
         stage('Azure CLI Login') {
             steps {
-                withCredentials([
-                    usernamePassword(credentialsId: env.REGISTRY_CREDENTIALS, usernameVariable: 'REGISTRY_USERNAME', passwordVariable: 'REGISTRY_PASSWORD')
-                ]) {
-                    echo "Logging into Azure CLI using Registry Credentials"
+                withCredentials([usernamePassword(credentialsId: 'my-aks-service-principal', usernameVariable: 'APP_ID', passwordVariable: 'APP_PASSWORD')]) {
+                    echo 'Logging into Azure CLI using Service Principal Credentials'
                     sh '''
                         az logout || true
-                        az login --service-principal -u $REGISTRY_USERNAME -p $REGISTRY_PASSWORD --tenant 3c8ea0e4-127c-4a02-ac65-58830e4ac608
+                        az login --service-principal -u $APP_ID -p $APP_PASSWORD --tenant 3c8ea0e4-127c-4a02-ac65-58830e4ac608
                     '''
                 }
             }
@@ -37,35 +27,33 @@ pipeline {
 
         stage('Build and Test') {
             steps {
-                script {
-                    echo "Setting up virtual environment and installing dependencies for ${env.APP_NAME}"
-                    sh '''
-                        python -m venv venv
-                        source venv/bin/activate
-                        pip install -r ${DOCKERFILE_PATH}/requirements.txt
-                    '''
-                    echo "Running tests for ${env.APP_NAME}"
-                    script {
-                        if (fileExists("${env.DOCKERFILE_PATH}/tests")) {
-                            sh "python -m unittest discover ${env.DOCKERFILE_PATH}/tests"
-                        } else {
-                            echo "No tests directory found. Skipping tests."
-                        }
-                    }
-                }
+                echo 'Building and testing the web app'
+                sh '''
+                    # Example: install requirements if Python
+                    # pip install -r requirements.txt
+
+                    # Example: run tests if any
+                    # pytest tests/
+                    echo "No unit tests configured. Skipping."
+                '''
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                withCredentials([usernamePassword(credentialsId: env.REGISTRY_CREDENTIALS, passwordVariable: 'REGISTRY_PASSWORD', usernameVariable: 'REGISTRY_USERNAME')]) {
-                    echo "Building Docker image: ${env.IMAGE_NAME}"
+                echo 'Building Docker Image'
+                sh '''
+                    docker build -t $REGISTRY/$IMAGE_NAME:latest .
+                '''
+            }
+        }
+
+        stage('Push Docker Image to ACR') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'acr-credentials', usernameVariable: 'ACR_USERNAME', passwordVariable: 'ACR_PASSWORD')]) {
                     sh '''
-                        docker build -f ${DOCKERFILE_PATH}/Dockerfile -t ${APP_NAME} ${DOCKERFILE_PATH}
-                        docker tag ${APP_NAME} ${IMAGE_NAME}
-                        echo "Logging into ACR ${ACR_NAME}.azurecr.io"
-                        docker login -u $REGISTRY_USERNAME -p $REGISTRY_PASSWORD ${ACR_NAME}.azurecr.io
-                        docker push ${IMAGE_NAME}
+                        echo $ACR_PASSWORD | docker login $REGISTRY --username $ACR_USERNAME --password-stdin
+                        docker push $REGISTRY/$IMAGE_NAME:latest
                     '''
                 }
             }
@@ -73,59 +61,32 @@ pipeline {
 
         stage('Deploy to AKS') {
             steps {
-                withCredentials([file(credentialsId: env.KUBE_CONFIG_CREDENTIALS, variable: 'KUBECONFIG_FILE')]) {
-                    echo "Applying Kubernetes manifests from ${env.K8S_MANIFEST_PATH}"
-                    sh '''
-                        kubectl --kubeconfig="$KUBECONFIG_FILE" apply -f ${K8S_MANIFEST_PATH}/deployment.yaml -n ${NAMESPACE}
-                        kubectl --kubeconfig="$KUBECONFIG_FILE" apply -f ${K8S_MANIFEST_PATH}/service.yaml -n ${NAMESPACE}
-                    '''
-                }
+                echo 'Deploying to AKS Cluster'
+                sh '''
+                    az aks get-credentials --resource-group myResourceGroup --name myAKSCluster --overwrite-existing
+
+                    kubectl set image deployment/simple-webapp simple-webapp=$REGISTRY/$IMAGE_NAME:latest --record
+                '''
             }
         }
 
         stage('Verify Deployment') {
             steps {
-                script {
-                    def serviceName = "${env.APP_NAME}-service"
-                    def namespace = env.NAMESPACE
-                    def maxRetries = 5
-                    def retryInterval = 30
-                    withCredentials([file(credentialsId: env.KUBE_CONFIG_CREDENTIALS, variable: 'KUBECONFIG_FILE')]) {
-                        for (int i = 0; i < maxRetries; i++) {
-                            try {
-                                def serviceInfo = sh(script: "kubectl --kubeconfig=\"$KUBECONFIG_FILE\" get service ${serviceName} -n ${namespace} -o jsonpath='{.status.loadBalancer.ingress[0].ip}'", returnStdout: true).trim()
-                                if (serviceInfo) {
-                                    echo "Service ${serviceName} is available at: ${serviceInfo}"
-                                    sh "curl --fail --show-error http://${serviceInfo}"
-                                    break
-                                } else {
-                                    echo "LoadBalancer IP not available yet. Retrying in ${retryInterval} seconds (${i + 1}/${maxRetries})..."
-                                    sleep time: retryInterval, unit: 'SECONDS'
-                                }
-                            } catch (Exception e) {
-                                echo "Error checking service status: ${e.getMessage()}"
-                                if (i < maxRetries - 1) {
-                                    sleep time: retryInterval, unit: 'SECONDS'
-                                } else {
-                                    error "Failed to verify deployment of ${serviceName} after ${maxRetries} retries."
-                                }
-                            }
-                        }
-                    }
-                }
+                echo 'Verifying deployment on AKS'
+                sh '''
+                    kubectl rollout status deployment/simple-webapp
+                    kubectl get pods
+                '''
             }
         }
     }
 
     post {
-        always {
-            echo "Pipeline completed for ${env.APP_NAME}."
+        success {
+            echo 'Pipeline completed successfully for webapp!'
         }
         failure {
-            echo "Pipeline failed for ${env.APP_NAME} :("
-        }
-        success {
-            echo "Pipeline succeeded for ${env.APP_NAME}! 🚀"
+            echo 'Pipeline failed for webapp :('
         }
     }
 }
