@@ -1,8 +1,6 @@
 pipeline {
-    agent {
-        // Specify a specific agent or label, or use 'any'
-        any
-    }
+    agent any // Specify the agent
+
     environment {
         // Define environment variables for your project.  Good practice to define them here.
         AZURE_CREDENTIALS = 'my-aks-service-principal' // Use the ID from your Jenkins credentials
@@ -46,7 +44,7 @@ pipeline {
         }
         stage('Build Docker Image') {
             steps {
-                withCredentials(credentials: [usernamePassword(credentialsId: 'acr-credentials', usernameVariable: 'REGISTRY_USERNAME', passwordVariable: 'REGISTRY_PASSWORD')]) {
+                withCredentials(bindings: [usernamePassword(credentialsId: 'acr-credentials', usernameVariable: 'REGISTRY_USERNAME', passwordVariable: 'REGISTRY_PASSWORD')]) { // Changed credentials to bindings
                     script {
                         echo "Building Docker image: ${REGISTRY_NAME}.azurecr.io/${APP_NAME}:${DOCKER_IMAGE_TAG}"
                         sh "docker build -f Dockerfile -t ${APP_NAME} ."
