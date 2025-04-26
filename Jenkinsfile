@@ -10,7 +10,7 @@ pipeline {
         KUBE_CONFIG_CREDENTIALS = 'my-aks-service-principal'
         DEPLOYMENT_NAME = 'webapp-deployment'
         NAMESPACE = 'default'
-        DOCKERFILE_PATH = 'webapp'
+        DOCKERFILE_PATH = 'webapp'  // Changed to 'webapp'
         K8S_MANIFEST_PATH = 'k8s'
         APP_NAME = 'webapp'
         REGISTRY_CREDENTIALS = 'acr-credentials'
