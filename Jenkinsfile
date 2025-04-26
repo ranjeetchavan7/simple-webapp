@@ -47,11 +47,11 @@ pipeline {
             steps {
                 withCredentials([usernamePassword(credentialsId: env.REGISTRY_CREDENTIALS, passwordVariable: 'REGISTRY_PASSWORD', usernameVariable: 'REGISTRY_USERNAME')]) {
                     echo "Building Docker image: ${env.IMAGE_NAME}"
-                    sh "docker build -f ${env.DOCKERFILE_PATH}/Dockerfile -t ${env.IMAGE_NAME} ."
+                    sh "docker build -f ${env.DOCKERFILE_PATH}/Dockerfile -t ${IMAGE_NAME} ."
                     echo "Logging into Azure Container Registry: ${env.ACR_NAME}.azurecr.io"
                     sh "docker login -u ${env.REGISTRY_USERNAME} -p ${env.REGISTRY_PASSWORD} ${env.ACR_NAME}.azurecr.io"
                     echo "Pushing Docker image: ${env.IMAGE_NAME}"
-                    sh "docker push ${env.IMAGE_NAME}"
+                    sh "docker push ${IMAGE_NAME}"
                 }
             }
         }
