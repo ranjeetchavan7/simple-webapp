@@ -26,6 +26,7 @@ pipeline {
             steps {
                 // Use credentialsId for Git
                 git credentialsId: env.GIT_CREDENTIALS, url: 'https://github.com/ranjeetchavan7/simple-webapp.git'
+                branch: 'main'
             }
         }
 
