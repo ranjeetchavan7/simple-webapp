@@ -49,8 +49,8 @@ pipeline {
                     withCredentials([usernamePassword(credentialsId: env.REGISTRY_CREDENTIALS, passwordVariable: 'REGISTRY_PASSWORD', usernameVariable: 'REGISTRY_USERNAME')]) {
                         echo "Building Docker image: ${env.IMAGE_NAME}"
                         // Change to the directory containing the Dockerfile
-                        dir("${env.DOCKERFILE_PATH}") {  // Added dir step
-                            sh "docker build -f Dockerfile -t ${IMAGE_NAME} ."
+                        dir("${env.DOCKERFILE_PATH}") {
+                            sh "docker build -f ${env.DOCKERFILE_PATH}/Dockerfile -t ${IMAGE_NAME} ."  // Corrected line
                         }
                         echo "Logging into Azure Container Registry: ${env.ACR_NAME}.azurecr.io"
                         sh "docker login -u \$REGISTRY_USERNAME -p \$REGISTRY_PASSWORD ${env.ACR_NAME}.azurecr.io"
