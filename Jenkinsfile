@@ -32,23 +32,18 @@ pipeline {
         stage('Build and Test') {
             steps {
                 script {
-                    // Function to run tests
-                    def runTests() {
-                        echo "Setting up virtual environment and installing dependencies for ${env.APP_NAME}"
-                        sh 'python -m venv venv'
-                        sh 'source venv/bin/activate'
-                        sh "pip install -r ${env.DOCKERFILE_PATH}/requirements.txt"
+                    echo "Setting up virtual environment and installing dependencies for ${env.APP_NAME}"
+                    sh 'python -m venv venv'
+                    sh 'source venv/bin/activate'
+                    sh "pip install -r ${env.DOCKERFILE_PATH}/requirements.txt"
 
-                        echo "Running tests for ${env.APP_NAME}"
-                        // Example test execution (replace with your actual test command)
-                        if (fileExists("${env.DOCKERFILE_PATH}/tests")) {
-                            sh "python -m unittest discover ${env.DOCKERFILE_PATH}/tests"
-                        } else {
-                            echo "No tests directory found in ${env.DOCKERFILE_PATH}. Skipping tests."
-                        }
+                    echo "Running tests for ${env.APP_NAME}"
+                    // Check if tests directory exists before running tests
+                    if (fileExists("${env.DOCKERFILE_PATH}/tests")) {
+                        sh "python -m unittest discover ${env.DOCKERFILE_PATH}/tests"
+                    } else {
+                        echo "No tests directory found in ${env.DOCKERFILE_PATH}. Skipping tests."
                     }
-
-                    runTests() // Call the test function
                 }
             }
         }
