@@ -4,7 +4,7 @@ pipeline {
     environment {
         // Credentials IDs in Jenkins
         GIT_CREDENTIALS = 'github-ssh'
-        // Other environment variables...
+        // Other environment variables
         ACR_NAME = 'ranjeet'
         IMAGE_NAME = "${ACR_NAME}.azurecr.io/webapp:${BUILD_ID}"
         KUBE_CONFIG_CREDENTIALS = 'my-aks-service-principal'
@@ -21,8 +21,10 @@ pipeline {
     stages {
         stage('Checkout') {
             steps {
-                // Use credentialsId for Git
-                git credentialsId: env.GIT_CREDENTIALS, url: 'https://github.com/ranjeetchavan7/simple-webapp.git', branch: 'main'
+                // Use credentialsId for Git, and specify the branch
+                git credentialsId: env.GIT_CREDENTIALS, 
+                    url: 'https://github.com/ranjeetchavan7/simple-webapp.git', 
+                    branch: 'main'
             }
         }
 
@@ -46,16 +48,17 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 script {
-                    withCredentials([usernamePassword(credentialsId: env.REGISTRY_CREDENTIALS, passwordVariable: 'REGISTRY_PASSWORD', usernameVariable: 'REGISTRY_USERNAME')]) {
+                    withCredentials([usernamePassword(credentialsId: env.REGISTRY_CREDENTIALS, 
+                                                      passwordVariable: 'REGISTRY_PASSWORD', 
+                                                      usernameVariable: 'REGISTRY_USERNAME')]) {
                         echo "Building Docker image: ${env.IMAGE_NAME}"
-                        // Change to the directory containing the Dockerfile
-                        dir("${env.DOCKERFILE_PATH}") {
-                            sh "docker build -f Dockerfile -t ${IMAGE_NAME} ."
-                        }
+                        // Changed context to "." and added a tag
+                        sh "docker build -f Dockerfile -t ${env.APP_NAME} ."
+                        sh "docker tag ${env.APP_NAME} ${env.IMAGE_NAME}"
                         echo "Logging into Azure Container Registry: ${env.ACR_NAME}.azurecr.io"
                         sh "docker login -u \$REGISTRY_USERNAME -p \$REGISTRY_PASSWORD ${env.ACR_NAME}.azurecr.io"
                         echo "Pushing Docker image: ${env.IMAGE_NAME}"
-                        sh "docker push ${IMAGE_NAME}"
+                        sh "docker push ${env.IMAGE_NAME}"
                     }
                 }
             }
@@ -63,15 +66,13 @@ pipeline {
 
         stage('Deploy to AKS') {
             steps {
-                // Use withAzureCli to handle Azure Service Principal
-                withAzureCli(credentialsId: env.KUBE_CONFIG_CREDENTIALS, script: """
-                    # Get the AKS credentials using Azure CLI
-                    az aks get-credentials --resource-group ${env.RESOURCE_GROUP} --name ${env.AKS_CLUSTER_NAME} --file \$HOME/.kube/config
-                    
-                    # Apply Kubernetes manifests
-                    kubectl apply -f ${env.K8S_MANIFEST_PATH}/ -n ${env.NAMESPACE}
+                withCredentials([file(credentialsId: env.KUBE_CONFIG_CREDENTIALS, variable: 'KUBECONFIG_FILE')]) {
+                    echo "Applying Kubernetes manifests from ${env.K8S_MANIFEST_PATH} to namespace ${env.NAMESPACE}"
+                    //  Explicitly apply deployment and service manifests.
+                    sh "kubectl --kubeconfig=\"${KUBECONFIG_FILE}\" apply -f ${env.K8S_MANIFEST_PATH}/deployment.yaml -n ${env.NAMESPACE}"
+                    sh "kubectl --kubeconfig=\"${KUBECONFIG_FILE}\" apply -f ${env.K8S_MANIFEST_PATH}/service.yaml -n ${env.NAMESPACE}"
                     echo "Successfully deployed ${env.APP_NAME} to AKS namespace ${env.NAMESPACE}"
-                """)
+                }
             }
         }
 
