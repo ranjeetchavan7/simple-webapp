@@ -32,22 +32,23 @@ pipeline {
         stage('Build and Test') {
             steps {
                 script {
-                    // Use a function for better organization
+                    // Function to run tests
                     def runTests() {
+                        echo "Setting up virtual environment and installing dependencies for ${env.APP_NAME}"
                         sh 'python -m venv venv'
                         sh 'source venv/bin/activate'
-                        sh 'pip install -r ${env.DOCKERFILE_PATH}/requirements.txt'
+                        sh "pip install -r ${env.DOCKERFILE_PATH}/requirements.txt"
+
                         echo "Running tests for ${env.APP_NAME}"
                         // Example test execution (replace with your actual test command)
-                        sh 'python -m unittest discover ${env.DOCKERFILE_PATH}/tests'
+                        if (fileExists("${env.DOCKERFILE_PATH}/tests")) {
+                            sh "python -m unittest discover ${env.DOCKERFILE_PATH}/tests"
+                        } else {
+                            echo "No tests directory found in ${env.DOCKERFILE_PATH}. Skipping tests."
+                        }
                     }
 
-                    // Check if tests directory exists before running tests
-                    if (fileExists("${env.DOCKERFILE_PATH}/tests")) {
-                        runTests()
-                    } else {
-                        echo "No tests directory found in ${env.DOCKERFILE_PATH}. Skipping test stage."
-                    }
+                    runTests() // Call the test function
                 }
             }
         }
@@ -55,12 +56,17 @@ pipeline {
         stage('Build Docker Image') {
             steps {
                 withCredentials([usernamePassword(credentialsId: env.REGISTRY_CREDENTIALS,
-                                                  passwordVariable: 'REGISTRY_PASSWORD',
-                                                  usernameVariable: 'REGISTRY_USERNAME')]) {
+                                                passwordVariable: 'REGISTRY_PASSWORD',
+                                                usernameVariable: 'REGISTRY_USERNAME')]) {
+                    echo "Building Docker image: ${env.IMAGE_NAME}"
                     // Explicitly define build context and Dockerfile path
                     sh "docker build -f ${env.DOCKERFILE_PATH}/Dockerfile -t ${env.APP_NAME} ${env.DOCKERFILE_PATH}"
                     sh "docker tag ${env.APP_NAME} ${env.IMAGE_NAME}"
+
+                    echo "Logging into Azure Container Registry: ${env.ACR_NAME}.azurecr.io"
                     sh "docker login -u ${env.REGISTRY_USERNAME} -p ${env.REGISTRY_PASSWORD} ${env.ACR_NAME}.azurecr.io"
+
+                    echo "Pushing Docker image: ${env.IMAGE_NAME}"
                     sh "docker push ${env.IMAGE_NAME}"
                 }
             }
@@ -70,7 +76,7 @@ pipeline {
             steps {
                 withCredentials([file(credentialsId: env.KUBE_CONFIG_CREDENTIALS,
                                       variable: 'KUBECONFIG_FILE')]) {
-                    // Apply Kubernetes manifests
+                    echo "Applying Kubernetes manifests from ${env.K8S_MANIFEST_PATH} to namespace ${env.NAMESPACE}"
                     sh "kubectl --kubeconfig=\"${KUBECONFIG_FILE}\" apply -f ${env.K8S_MANIFEST_PATH}/deployment.yaml -n ${env.NAMESPACE}"
                     sh "kubectl --kubeconfig=\"${KUBECONFIG_FILE}\" apply -f ${env.K8S_MANIFEST_PATH}/service.yaml -n ${env.NAMESPACE}"
                     echo "Successfully deployed ${env.APP_NAME} to AKS namespace ${env.NAMESPACE}"
@@ -101,7 +107,7 @@ pipeline {
                                     sh "curl --fail --show-error http://${serviceInfo}" //check status
                                     break
                                 } else {
-                                    echo "LoadBalancer IP for ${serviceName} not yet available. Retrying in ${retryInterval} seconds..."
+                                    echo "LoadBalancer IP for ${serviceName} not yet available. Retrying in ${retryInterval} seconds (${i + 1}/${maxRetries})..."
                                     sleep time: retryInterval, unit: 'SECONDS'
                                 }
                             } catch (Exception e) {
