@@ -10,7 +10,7 @@ pipeline {
         KUBE_CONFIG_CREDENTIALS = 'my-aks-service-principal'
         DEPLOYMENT_NAME = 'webapp-deployment'
         NAMESPACE = 'default'
-        DOCKERFILE_PATH = 'webapp'  // Changed to 'webapp'
+        DOCKERFILE_PATH = 'webapp'
         K8S_MANIFEST_PATH = 'k8s'
         APP_NAME = 'webapp'
         REGISTRY_CREDENTIALS = 'acr-credentials'
@@ -49,7 +49,9 @@ pipeline {
                     withCredentials([usernamePassword(credentialsId: env.REGISTRY_CREDENTIALS, passwordVariable: 'REGISTRY_PASSWORD', usernameVariable: 'REGISTRY_USERNAME')]) {
                         echo "Building Docker image: ${env.IMAGE_NAME}"
                         // Change to the directory containing the Dockerfile
-                        sh "cd ${env.DOCKERFILE_PATH} && docker build -f Dockerfile -t ${IMAGE_NAME} ."
+                        dir("${env.DOCKERFILE_PATH}") {  // Added dir step
+                            sh "docker build -f Dockerfile -t ${IMAGE_NAME} ."
+                        }
                         echo "Logging into Azure Container Registry: ${env.ACR_NAME}.azurecr.io"
                         sh "docker login -u \$REGISTRY_USERNAME -p \$REGISTRY_PASSWORD ${env.ACR_NAME}.azurecr.io"
                         echo "Pushing Docker image: ${env.IMAGE_NAME}"
