@@ -30,7 +30,7 @@ pipeline {
                     echo "Setting up virtual environment and installing dependencies for ${env.APP_NAME}"
                     sh 'python3 -m venv venv'
                     sh '. venv/bin/activate'
-                    sh "python3 -m pip install -r ${env.DOCKERFILE_PATH}/requirements.txt"
+                    sh "python3 -m pip install -r requirements.txt"  // Changed path here
                     echo "Running tests for ${env.APP_NAME}"
                     if (fileExists("${env.DOCKERFILE_PATH}/tests")) {
                         sh "python3 -m unittest discover ${env.DOCKERFILE_PATH}/tests"
