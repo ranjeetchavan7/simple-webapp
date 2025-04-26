@@ -28,12 +28,12 @@ pipeline {
             steps {
                 script {
                     echo "Setting up virtual environment and installing dependencies for ${env.APP_NAME}"
-                    sh 'python -m venv venv'
-                    sh 'source venv/bin/activate'
-                    sh "pip install -r ${env.DOCKERFILE_PATH}/requirements.txt"
+                    sh 'python3 -m venv venv'
+                    sh '. venv/bin/activate'
+                    sh "python3 -m pip install -r ${env.DOCKERFILE_PATH}/requirements.txt"
                     echo "Running tests for ${env.APP_NAME}"
                     if (fileExists("${env.DOCKERFILE_PATH}/tests")) {
-                        sh "python -m unittest discover ${env.DOCKERFILE_PATH}/tests"
+                        sh "python3 -m unittest discover ${env.DOCKERFILE_PATH}/tests"
                     } else {
                         echo "No tests directory found in ${env.DOCKERFILE_PATH}. Skipping tests."
                     }
@@ -99,6 +99,7 @@ pipeline {
             }
         }
     }
+
     post {
         always {
             echo "Pipeline completed for ${env.APP_NAME}."
