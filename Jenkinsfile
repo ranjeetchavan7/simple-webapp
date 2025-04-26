@@ -10,7 +10,7 @@ pipeline {
         KUBE_CONFIG_CREDENTIALS = 'my-aks-service-principal'
         DEPLOYMENT_NAME = 'webapp-deployment'
         NAMESPACE = 'default'
-        DOCKERFILE_PATH = 'webapp'  // Corrected: Consistent variable name
+        DOCKERFILE_PATH = 'webapp'
         K8S_MANIFEST_PATH = 'k8s'
         APP_NAME = 'webapp'
         REGISTRY_CREDENTIALS = 'acr-credentials'
@@ -47,9 +47,7 @@ pipeline {
             steps {
                 withCredentials([usernamePassword(credentialsId: env.REGISTRY_CREDENTIALS, passwordVariable: 'REGISTRY_PASSWORD', usernameVariable: 'REGISTRY_USERNAME')]) {
                     echo "Building Docker image: ${env.IMAGE_NAME}"
-                    //sh "docker build -f Dockerfile -t ${env.APP_NAME} ." // Incorrect, Dockerfile is in a subfolder
-                    sh "docker build -f ${env.DOCKERFILE_PATH}/Dockerfile -t ${env.IMAGE_NAME} ."  // Corrected: added DOCKERFILE_PATH to path, and changed the tag to IMAGE_NAME
-                    sh "docker tag ${env.IMAGE_NAME} ${env.IMAGE_NAME}" //redundant line, removed.
+                    sh "docker build -f ${env.DOCKERFILE_PATH}/Dockerfile -t ${env.IMAGE_NAME} ."
                     echo "Logging into Azure Container Registry: ${env.ACR_NAME}.azurecr.io"
                     sh "docker login -u ${env.REGISTRY_USERNAME} -p ${env.REGISTRY_PASSWORD} ${env.ACR_NAME}.azurecr.io"
                     echo "Pushing Docker image: ${env.IMAGE_NAME}"
@@ -65,7 +63,7 @@ pipeline {
                     # Get the AKS credentials using Azure CLI
                     az aks get-credentials --resource-group ${env.RESOURCE_GROUP} --name ${env.AKS_CLUSTER_NAME} --file \$HOME/.kube/config
                     
-                    # Apply Kubernetes manifests.  Consider applying all in the directory.
+                    # Apply Kubernetes manifests
                     kubectl apply -f ${env.K8S_MANIFEST_PATH}/ -n ${env.NAMESPACE}
                     echo "Successfully deployed ${env.APP_NAME} to AKS namespace ${env.NAMESPACE}"
                 """)
