@@ -7,7 +7,7 @@ pipeline {
         // Other environment variables
         ACR_NAME = 'ranjeet'
         IMAGE_NAME = "${ACR_NAME}.azurecr.io/webapp:${BUILD_ID}"
-        KUBE_CONFIG_CREDENTIALS = 'aks-sp'  // Changed to aks-sp.  This should be the ID of your Azure Service Principal credential in Jenkins.
+        KUBE_CONFIG_CREDENTIALS = 'my-aks-service-principal'  // Corrected credential ID
         DEPLOYMENT_NAME = 'webapp-deployment'
         NAMESPACE = 'default'
         DOCKERFILE_PATH = 'webapp'
@@ -67,7 +67,7 @@ pipeline {
         stage('Deploy to AKS') {
             steps {
                 // Use withAzureCli to handle Azure Service Principal
-                withAzureCli(credentialsId: env.KUBE_CONFIG_CREDENTIALS) {  // Use the credential ID
+                withAzureCli(credentialsId: env.KUBE_CONFIG_CREDENTIALS) {
                     script {
                         echo "Deploying to AKS"
                         // Get the AKS credentials using Azure CLI.  Assumes your SP has the necessary permissions.
@@ -80,52 +80,6 @@ pipeline {
                     }
                 }
             }
-        }
-
-        stage('Verify Deployment') {
-            steps {
-                script {
-                    def serviceName = "${env.APP_NAME}-service"
-                    def namespace = env.NAMESPACE
-                    def maxRetries = 5
-                    def retryInterval = 30
-
-                    withCredentials([file(credentialsId: env.KUBE_CONFIG_CREDENTIALS, variable: 'KUBECONFIG_FILE')]) {
-                        for (int i = 0; i < maxRetries; i++) {
-                            try {
-                                def serviceInfo = sh(script: "kubectl --kubeconfig=\"\$KUBECONFIG_FILE\" get service ${serviceName} -n ${namespace} -o jsonpath='{.status.loadBalancer.ingress[0].ip}'", returnStdout: true).trim()
-                                if (serviceInfo) {
-                                    echo "Service ${serviceName} is available at: ${serviceInfo}"
-                                    sh "curl --fail --show-error http://${serviceInfo}"
-                                    break
-                                } else {
-                                    echo "LoadBalancer IP for ${serviceName} not yet available. Retrying in ${retryInterval} seconds (${i + 1}/${maxRetries})..."
-                                    sleep time: retryInterval, unit: 'SECONDS'
-                                }
-                            } catch (Exception e) {
-                                echo "Error checking service status: ${e.getMessage()}"
-                                if (i < maxRetries - 1) {
-                                    sleep time: retryInterval, unit: 'SECONDS'
-                                } else {
-                                    error "Failed to verify deployment of ${serviceName} after ${maxRetries} retries."
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    post {
-        always {
-            echo "Pipeline completed for ${env.APP_NAME}."
-        }
-        failure {
-            echo "Pipeline failed for ${env.APP_NAME} :("
-        }
-        success {
-            echo "Pipeline succeeded for ${env.APP_NAME}!"
         }
     }
 }
