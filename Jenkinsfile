@@ -10,7 +10,7 @@ pipeline {
         KUBE_CONFIG_CREDENTIALS = 'my-aks-service-principal'
         DEPLOYMENT_NAME = 'webapp-deployment'
         NAMESPACE = 'default'
-        DOCKERFILE_PATH = 'webapp'
+        DOCKERFILE_PATH = 'webapp' // You might not need this.
         K8S_MANIFEST_PATH = 'k8s'
         APP_NAME = 'webapp'
         REGISTRY_CREDENTIALS = 'acr-credentials'
@@ -28,12 +28,12 @@ pipeline {
             steps {
                 script {
                     echo "Setting up virtual environment and installing dependencies for ${env.APP_NAME}"
-                    sh 'python -m venv venv'
-                    sh 'source venv/bin/activate'
-                    sh "pip install -r ${env.DOCKERFILE_PATH}/requirements.txt"
+                    sh 'python3 -m venv venv'
+                    sh '. venv/bin/activate'
+                    sh "python3 -m pip install -r requirements.txt"
                     echo "Running tests for ${env.APP_NAME}"
                     if (fileExists("${env.DOCKERFILE_PATH}/tests")) {
-                        sh "python -m unittest discover ${env.DOCKERFILE_PATH}/tests"
+                        sh "python3 -m unittest discover ${env.DOCKERFILE_PATH}/tests"
                     } else {
                         echo "No tests directory found in ${env.DOCKERFILE_PATH}. Skipping tests."
                     }
@@ -45,7 +45,7 @@ pipeline {
             steps {
                 withCredentials([usernamePassword(credentialsId: env.REGISTRY_CREDENTIALS, passwordVariable: 'REGISTRY_PASSWORD', usernameVariable: 'REGISTRY_USERNAME')]) {
                     echo "Building Docker image: ${env.IMAGE_NAME}"
-                    sh "docker build -f ${env.DOCKERFILE_PATH}/Dockerfile -t ${env.APP_NAME} ${env.DOCKERFILE_PATH}"
+                    sh "docker build -f Dockerfile -t ${env.APP_NAME} ."
                     sh "docker tag ${env.APP_NAME} ${env.IMAGE_NAME}"
                     echo "Logging into Azure Container Registry: ${env.ACR_NAME}.azurecr.io"
                     sh "docker login -u ${env.REGISTRY_USERNAME} -p ${env.REGISTRY_PASSWORD} ${env.ACR_NAME}.azurecr.io"
@@ -57,11 +57,17 @@ pipeline {
 
         stage('Deploy to AKS') {
             steps {
-                withCredentials([file(credentialsId: env.KUBE_CONFIG_CREDENTIALS, variable: 'KUBECONFIG_FILE')]) {
-                    echo "Applying Kubernetes manifests from ${env.K8S_MANIFEST_PATH} to namespace ${env.NAMESPACE}"
-                    sh "kubectl --kubeconfig=\"${KUBECONFIG_FILE}\" apply -f ${env.K8S_MANIFEST_PATH}/deployment.yaml -n ${env.NAMESPACE}"
-                    sh "kubectl --kubeconfig=\"${KUBECONFIG_FILE}\" apply -f ${env.K8S_MANIFEST_PATH}/service.yaml -n ${env.NAMESPACE}"
+                // Use withAzureCli to handle Azure Service Principal
+                withAzureCli(credentialsId: env.KUBE_CONFIG_CREDENTIALS, script: """
+                    # Get the AKS credentials using Azure CLI
+                    az aks get-credentials --resource-group=your-resource-group-name --name=your-aks-cluster-name --file=-
+                    
+                    # Apply Kubernetes manifests
+                    kubectl apply -f ${env.K8S_MANIFEST_PATH}/deployment.yaml -n ${env.NAMESPACE}
+                    kubectl apply -f ${env.K8S_MANIFEST_PATH}/service.yaml -n ${env.NAMESPACE}
                     echo "Successfully deployed ${env.APP_NAME} to AKS namespace ${env.NAMESPACE}"
+                """) {
+                    //The script block is intentionally left empty
                 }
             }
         }
@@ -99,6 +105,7 @@ pipeline {
             }
         }
     }
+
     post {
         always {
             echo "Pipeline completed for ${env.APP_NAME}."
